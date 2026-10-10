@@ -1,0 +1,497 @@
+\section{问题一求解程序（problem1.py）}
+\begin{codelisting}
+import numpy as np, pandas as pd, os
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+plt.rcParams["font.sans-serif"]=["Microsoft YaHei","SimHei"]
+plt.rcParams["axes.unicode_minus"]=False
+BASE = r"C:\Users\24729\Desktop\CUMUM2026\A题"
+RES  = r"C:\Users\24729\Desktop\A\结果文件"; FIG = r"C:\Users\24729\Desktop\A\图"
+R   = 0.02
+rho = 820.0
+cp  = 2600.0
+k   = 0.36
+h   = 25.0
+hm  = 8e-7
+T0  = 28.0
+C0  = 2.55
+alpha = k/(rho*cp)
+def D_of_C(C):
+    return 7e-9*np.exp(-0.89/np.maximum(C,1e-6))
+att1 = pd.read_excel(os.path.join(BASE,"附件","附件1.xlsx"))
+t_env_raw = att1["时间"].values.astype(float)
+T_env_raw = att1["温度"].values.astype(float)
+C_env_raw = att1["水分浓度"].values.astype(float)
+dt = 1.0; dr = 0.001
+N  = int(round(R/dr))
+tt = int(1800/dt)
+r  = np.arange(N+1)*dr
+tgrid = np.arange(0, tt+1, dtype=float)
+T_env = np.interp(tgrid, t_env_raw, T_env_raw)
+C_env = np.interp(tgrid, C_env_raw, C_env_raw)
+T_all = np.zeros((tt+1, N+1))
+C_all = np.zeros((tt+1, N+1))
+T = np.full(N+1, T0); C = np.full(N+1, C0)
+T_all[0]=T; C_all[0]=C
+axT = alpha*dt/dr**2
+for n in range(tt):
+    tcur = n*dt
+    Tg = T[N-1] - 2*dr*h/k*(T[N]-T_env[n])
+    Tn = T.copy()
+    Tn[0] = T[0] + 4*axT*(T[1]-T[0])
+    for i in range(1,N):
+        lap = (T[i+1]-2*T[i]+T[i-1])/dr**2 + (1.0/r[i])*(T[i+1]-T[i-1])/(2*dr)
+        Tn[i] = T[i] + alpha*dt*lap
+    lapN = (Tg-2*T[N]+T[N-1])/dr**2 + (1.0/r[N])*(Tg-T[N-1])/(2*dr)
+    Tn[N] = T[N] + alpha*dt*lapN
+    T = Tn
+    D = D_of_C(C)
+    axD = D*dt/dr**2
+    Cg = C[N-1] - 2*dr*hm/D[N]*(C[N]-C_env[n])
+    Cn = C.copy()
+    Cn[0] = C[0] + 4*axD[0]*(C[1]-C[0])
+    for i in range(1,N):
+        lap = (C[i+1]-2*C[i]+C[i-1])/dr**2 + (1.0/r[i])*(C[i+1]-C[i-1])/(2*dr)
+        Cn[i] = C[i] + D[i]*dt*lap
+    lapN = (Cg-2*C[N]+C[N-1])/dr**2 + (1.0/r[N])*(Cg-C[N-1])/(2*dr)
+    Cn[N] = C[N] + D[N]*dt*lapN
+    C = Cn
+    T_all[n+1]=T; C_all[n+1]=C
+dists = np.round(np.arange(0, 2.0+1e-9, 0.1), 1)
+times = np.arange(1, tt+1)
+col_idx = np.array([int(round(d/0.1)) for d in dists])
+def build_sheet(data):
+    out = np.column_stack([times, np.round(data[1:][:, col_idx], 4)])
+    cols = ["时间\\到药材中心的距离"] + [str(d) for d in dists]
+    return pd.DataFrame(out, columns=cols)
+for name, data in [("温度", T_all), ("水分浓度", C_all)]:
+    df = build_sheet(data)
+    with pd.ExcelWriter(os.path.join(RES,"result1.xlsx"), engine="openpyxl", mode="a" if name=="水分浓度" else "w") as w:
+        df.to_excel(w, sheet_name=name, index=False)
+print("result1.xlsx written")
+ttab = [100,300,600,900,1200,1500,1800]
+dtab = [0,5,10,15,20]
+tidx = [int(t/1) for t in ttab]
+with open(os.path.join(RES,"表1_表2.txt"),"w",encoding="utf-8") as f:
+    for name, data, unit in [("表1 温度", T_all, "C"), ("表2 水分浓度", C_all, "kg/kg")]:
+        f.write("\n%s\n时间/s\\距离/cm\t" % name + "\t".join(["0","0.5","1","1.5","2"])+"\n")
+        for k,t in enumerate(ttab):
+            row = data[tidx[k], np.array(dtab)]
+            f.write("%d\t"%t + "\t".join("%.4f"%v for v in row)+"\n")
+print("tables written")
+fig, ax = plt.subplots(1,2, figsize=(12,4.6))
+for k,t in enumerate(ttab):
+    ax[0].plot(r*100, T_all[tidx[k]], label="t=%ds"%t)
+ax[0].set_xlabel("到中心距离 (cm)"); ax[0].set_ylabel("温度 (°C)"); ax[0].set_title("温度随径向距离的分布"); ax[0].legend(fontsize=8)
+for k,t in enumerate(ttab):
+    ax[1].plot(r*100, C_all[tidx[k]], label="t=%ds"%t)
+ax[1].set_xlabel("到中心距离 (cm)"); ax[1].set_ylabel("水分浓度 (kg/kg)"); ax[1].set_title("水分浓度随径向距离的分布"); ax[1].legend(fontsize=8)
+fig.tight_layout(); fig.savefig(os.path.join(FIG,"q1_profiles.png"), dpi=140); plt.close(fig)
+fig, ax = plt.subplots(1,2, figsize=(12,4.6))
+for di,lab in [(0,"r=0"),(5,"r=0.5"),(10,"r=1.0"),(15,"r=1.5"),(20,"r=2.0")]:
+    ax[0].plot(tgrid, T_all[:,di], label=lab)
+ax[0].plot(tgrid, T_env, ls="--", color="gray", label="烘房温度")
+ax[0].set_xlabel("时间 (s)"); ax[0].set_ylabel("温度 (°C)"); ax[0].set_title("温度随时间的变化"); ax[0].legend(fontsize=8)
+for di,lab in [(0,"r=0"),(5,"r=0.5"),(10,"r=1.0"),(15,"r=1.5"),(20,"r=2.0")]:
+    ax[1].plot(tgrid, C_all[:,di], label=lab)
+ax[1].set_xlabel("时间 (s)"); ax[1].set_ylabel("水分浓度 (kg/kg)"); ax[1].set_title("水分浓度随时间的变化"); ax[1].legend(fontsize=8)
+fig.tight_layout(); fig.savefig(os.path.join(FIG,"q1_history.png"), dpi=140); plt.close(fig)
+print("figures written")
+print("T at 1800s: center=%.4f surface=%.4f env=%.4f" % (T_all[1800,0], T_all[1800,20], T_env[1800]))
+print("C at 1800s: center=%.4f surface=%.4f" % (C_all[1800,0], C_all[1800,20]))
+\end{codelisting}
+
+\section{问题二求解程序（problem2.py）}
+\begin{codelisting}
+import os, numpy as np, pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]
+plt.rcParams["axes.unicode_minus"] = False
+BASE = r"C:\Users\24729\Desktop\CUMUM2026\A题"
+OUT  = r"C:\Users\24729\Desktop\A"
+RES  = os.path.join(OUT, "结果文件"); TAB = os.path.join(OUT, "表格"); FIG = os.path.join(OUT, "图")
+for d in (RES, TAB, FIG): os.makedirs(d, exist_ok=True)
+R    = 0.02
+h    = 25.0
+hm   = 8e-7
+T0   = 28.0
+C0   = 2.55
+T_SET, C_SET = 50.0, 0.04986
+T_SWITCH = 7200.0
+def props(C):
+    rho = 650.0 + 128.0*C
+    cp  = 1450.0 + 2736.0*C/(C+1.0)
+    k   = 0.21 + 0.38*C/(C+1.0)
+    return rho, cp, k
+def Dfun(C, T_K):
+    return 2.4e-3*np.exp(-0.45/np.maximum(C,1e-9))*np.exp(-3850.0/T_K)
+att = pd.read_excel(os.path.join(BASE, "附件", "附件1.xlsx"))
+t_raw = att.iloc[:,0].values.astype(float)
+T_raw = att.iloc[:,1].values.astype(float)
+C_raw = att.iloc[:,2].values.astype(float)
+def env(t):
+    if t <= T_SWITCH:
+        return float(np.interp(t, t_raw, T_raw)), float(np.interp(t, t_raw, C_raw))
+    return T_SET, C_SET
+dr = 0.001; dt = 1.0
+N  = int(round(R/dr))
+r  = np.arange(N+1)*dr
+t_end = 10800.0
+nt = int(round(t_end/dt))
+T = np.full(N+1, T0); C = np.full(N+1, C0)
+T_hist = np.zeros((nt+1, N+1)); C_hist = np.zeros((nt+1, N+1))
+T_hist[0] = T; C_hist[0] = C
+t_grid = np.arange(0, nt+1)*dt
+for n in range(nt):
+    t = t_grid[n]
+    Tenv, Cenv = env(t)
+    rho, cp, k = props(C)
+    D = Dfun(C, T + 273.15)
+    k_half = 0.5*(k[:-1] + k[1:])
+    Tn = T.copy()
+    Tn[0] = T[0] + 4*dt*k_half[0]*(T[1]-T[0])/(rho[0]*cp[0]*dr*dr)
+    i = np.arange(1, N)
+    fl_in  = (i-0.5)*k_half[i-1]*(T[i-1]-T[i])
+    fl_out = (i+0.5)*k_half[i]  *(T[i+1]-T[i])
+    Tn[i] = T[i] + dt*(fl_in+fl_out)/(rho[i]*cp[i]*i*dr*dr)
+    Tn[N] = T[N] + 2*dt/(rho[N]*cp[N]*dr*dr*(N-0.25))*(
+            k_half[N-1]*(N-0.5)*(T[N-1]-T[N]) - h*R*(T[N]-Tenv))
+    T = Tn
+    D_half = 0.5*(D[:-1] + D[1:])
+    Cn = C.copy()
+    Cn[0] = C[0] + 4*dt*D_half[0]*(C[1]-C[0])/(dr*dr)
+    fl_in  = (i-0.5)*D_half[i-1]*(C[i-1]-C[i])
+    fl_out = (i+0.5)*D_half[i]  *(C[i+1]-C[i])
+    Cn[i] = C[i] + dt*(fl_in+fl_out)/(i*dr*dr)
+    Cn[N] = C[N] + 2*dt/(dr*dr*(N-0.25))*(
+            D_half[N-1]*(N-0.5)*(C[N-1]-C[N]) - hm*R*(C[N]-Cenv))
+    C = Cn
+    T_hist[n+1] = T; C_hist[n+1] = C
+print("properties at start (C=2.55): rho=%.2f cp=%.1f k=%.4f alpha=%.3e" % (
+    props(np.array([C0]))[0][0], props(np.array([C0]))[1][0], props(np.array([C0]))[2][0],
+    props(np.array([C0]))[2][0]/(props(np.array([C0]))[0][0]*props(np.array([C0]))[1][0])))
+Dvals = Dfun(C_hist, T_hist+273.15)
+print("D range over run: %.3e ~ %.3e m2/s" % (Dvals.min(), Dvals.max()))
+print("T at 3h: center=%.4f surface=%.4f (env=%.1f)" % (T_hist[-1,0], T_hist[-1,N], T_SET))
+print("C at 3h: center=%.4f surface=%.4f" % (C_hist[-1,0], C_hist[-1,N]))
+dists = np.round(np.arange(0, 2.0+1e-9, 0.1), 1)
+col_idx = np.array([int(round(d/0.1)) for d in dists])
+times = np.arange(1, nt+1)
+def build(data):
+    out = np.column_stack([times, np.round(data[1:][:, col_idx], 4)])
+    cols = ["时间\\到药材中心的距离"] + [str(d) for d in dists]
+    return pd.DataFrame(out, columns=cols)
+p2 = os.path.join(RES, "result2.xlsx")
+with pd.ExcelWriter(p2, engine="openpyxl") as w:
+    build(T_hist).to_excel(w, sheet_name="温度", index=False)
+    build(C_hist).to_excel(w, sheet_name="水分浓度", index=False)
+from openpyxl import load_workbook
+wb = load_workbook(p2)
+for ws in wb.worksheets:
+    for row in ws.iter_rows(min_row=2, min_col=2):
+        for c in row:
+            if isinstance(c.value,(int,float)): c.number_format = "0.0000"
+wb.save(p2)
+print("result2.xlsx written:", p2)
+htab = [0.5,1.0,1.5,2.0,2.5,3.0]
+sid  = [int(round(hh*3600/dt)) for hh in htab]
+dtab = [0,5,10,15,20]
+def table(data):
+    rows=[]
+    for k in sid:
+        rows.append(np.round(data[k, dtab],4).tolist())
+    return pd.DataFrame(rows, index=["%.1f"%h for h in htab],
+                        columns=["0","0.5","1","1.5","2"])
+T3, T4 = table(T_hist), table(C_hist)
+with pd.ExcelWriter(os.path.join(TAB,"表3_表4.xlsx"), engine="openpyxl") as w:
+    T3.to_excel(w, sheet_name="表3 温度"); T4.to_excel(w, sheet_name="表4 水分浓度")
+with open(os.path.join(TAB,"表3_表4.txt"),"w",encoding="utf-8") as f:
+    f.write("表3 3小时内药材的温度 (degC)\n时间/h\\距离/cm\t0\t0.5\t1\t1.5\t2\n")
+    for h in htab: f.write("%.1f\t"%h + "\t".join("%.4f"%v for v in T3.loc["%.1f"%h]) + "\n")
+    f.write("\n表4 3小时内药材的水分浓度 (kg/kg)\n时间/h\\距离/cm\t0\t0.5\t1\t1.5\t2\n")
+    for h in htab: f.write("%.1f\t"%h + "\t".join("%.4f"%v for v in T4.loc["%.1f"%h]) + "\n")
+print("表3_表4 written")
+fig, ax = plt.subplots(1,2, figsize=(12,4.6))
+for hh,lab in [(0.5,"0.5 h"),(1.0,"1 h"),(1.5,"1.5 h"),(2.0,"2 h"),(2.5,"2.5 h"),(3.0,"3 h")]:
+    k = int(round(hh*3600/dt))
+    ax[0].plot(r*100, T_hist[k], label=lab)
+    ax[1].plot(r*100, C_hist[k], label=lab)
+ax[0].set_xlabel("到中心距离 (cm)"); ax[0].set_ylabel("温度 (℃)"); ax[0].set_title("问题2：温度径向分布"); ax[0].legend(fontsize=8)
+ax[1].set_xlabel("到中心距离 (cm)"); ax[1].set_ylabel("水分浓度 (kg/kg)"); ax[1].set_title("问题2：水分浓度径向分布"); ax[1].legend(fontsize=8)
+fig.tight_layout(); fig.savefig(os.path.join(FIG,"q2_profiles.png"), dpi=140); plt.close(fig)
+fig, ax = plt.subplots(1,2, figsize=(12,4.6))
+for di,lab in [(0,"中心 r=0"),(5,"r=0.5"),(10,"r=1.0"),(15,"r=1.5"),(20,"表面 r=2.0")]:
+    ax[0].plot(t_grid/3600, T_hist[:,di], label=lab)
+    ax[1].plot(t_grid/3600, C_hist[:,di], label=lab)
+Ten = np.array([env(t)[0] for t in t_grid]); Cen = np.array([env(t)[1] for t in t_grid])
+ax[0].plot(t_grid/3600, Ten, "k--", lw=1, label="烘房温度")
+ax[0].axvline(2.0, color="gray", ls=":", lw=1); ax[1].axvline(2.0, color="gray", ls=":", lw=1)
+ax[0].set_xlabel("时间 (h)"); ax[0].set_ylabel("温度 (℃)"); ax[0].set_title("问题2：温度随时间变化（虚线=2h进入恒温）"); ax[0].legend(fontsize=8)
+ax[1].set_xlabel("时间 (h)"); ax[1].set_ylabel("水分浓度 (kg/kg)"); ax[1].set_title("问题2：水分浓度随时间变化"); ax[1].legend(fontsize=8)
+fig.tight_layout(); fig.savefig(os.path.join(FIG,"q2_history.png"), dpi=140); plt.close(fig)
+print("figures written")
+\end{codelisting}
+
+\section{问题三求解程序（problem3.py）}
+\begin{codelisting}
+import os, numpy as np, pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+plt.rcParams["font.sans-serif"]=["Microsoft YaHei","SimHei"]; plt.rcParams["axes.unicode_minus"]=False
+BASE = r"C:\Users\24729\Desktop\CUMUM2026\A题"
+OUT  = r"C:\Users\24729\Desktop\A"
+RES  = os.path.join(OUT, "\u7ed3\u679c\u6587\u4ef6")
+TAB  = os.path.join(OUT, "\u8868\u683c")
+FIG  = os.path.join(OUT, "\u56fe")
+for d in (RES,TAB,FIG): os.makedirs(d, exist_ok=True)
+R=0.02; h=25.0; hm=8e-7; T0=28.0; C0=2.55
+T_SET,C_SET=50.0,0.04986; T_SWITCH=7200.0; C_TARGET=0.15; C_TARGET_FIN=0.14995
+att=pd.read_excel(os.path.join(BASE,"\u9644\u4ef6","\u9644\u4ef61.xlsx"))
+tr,Tr_,Cr_=att.iloc[:,0].values.astype(float),att.iloc[:,1].values.astype(float),att.iloc[:,2].values.astype(float)
+def env(t):
+    return (float(np.interp(t,tr,Tr_)),float(np.interp(t,tr,Cr_))) if t<=T_SWITCH else (T_SET,C_SET)
+def props(C):
+    return 650.0+128.0*C, 1450.0+2736.0*C/(C+1.0), 0.21+0.38*C/(C+1.0)
+def Df(C,TK):
+    return 2.4e-3*np.exp(-0.45/np.maximum(C,1e-9))*np.exp(-3850.0/TK)
+def thomas(a,b,c,d):
+    n=len(b); cp=np.zeros(n); dp=np.zeros(n)
+    cp[0]=c[0]/b[0]; dp[0]=d[0]/b[0]
+    for i in range(1,n):
+        m=b[i]-a[i]*cp[i-1]; cp[i]=c[i]/m; dp[i]=(d[i]-a[i]*dp[i-1])/m
+    x=np.zeros(n); x[-1]=dp[-1]
+    for i in range(n-2,-1,-1): x[i]=dp[i]-cp[i]*x[i+1]
+    return x
+def solve(dt, dr=0.001, t_max=10*86400.0, snap_at=None):
+    N=int(round(R/dr)); nt=int(round(t_max/dt)); ii=np.arange(1,N)
+    T=np.full(N+1,T0); C=np.full(N+1,C0)
+    ts=[]; Ts=[]; Cs=[]; step60=max(1,int(round(60.0/dt))); t_end=None; snap_done=False
+    for n in range(nt):
+        t=n*dt
+        if n % step60==0:
+            ts.append(t); Ts.append(T.copy()); Cs.append(C.copy())
+        Tenv,Cenv=env(t)
+        rho,cp,k=props(C); kh=0.5*(k[:-1]+k[1:])
+        a=np.zeros(N+1); b=np.ones(N+1); c=np.zeros(N+1); d=T.copy()
+        mu=4*dt*kh[0]/(rho[0]*cp[0]*dr*dr); b[0]=1+mu; c[0]=-mu
+        lam=dt/(dr*dr*ii*rho[ii]*cp[ii]); aa=(ii-0.5)*kh[ii-1]; bb=(ii+0.5)*kh[ii]
+        a[ii]=-lam*aa; b[ii]=1+lam*(aa+bb); c[ii]=-lam*bb
+        cN=kh[N-1]*(N-0.5); dN=h*R; P=rho[N]*cp[N]*dr*dr*(N-0.25)/2; al=dt/P
+        a[N]=-al*cN; b[N]=1+al*(cN+dN); d[N]=T[N]+al*dN*Tenv
+        T=thomas(a,b,c,d)
+        D=Df(C,T+273.15); Dh=0.5*(D[:-1]+D[1:])
+        a=np.zeros(N+1); b=np.ones(N+1); c=np.zeros(N+1); d=C.copy()
+        mu=4*dt*Dh[0]/(dr*dr); b[0]=1+mu; c[0]=-mu
+        lam=dt/(dr*dr*ii); aa=(ii-0.5)*Dh[ii-1]; bb=(ii+0.5)*Dh[ii]
+        a[ii]=-lam*aa; b[ii]=1+lam*(aa+bb); c[ii]=-lam*bb
+        cN=Dh[N-1]*(N-0.5); dN=hm*R; P=dr*dr*(N-0.25)/2; al=dt/P
+        a[N]=-al*cN; b[N]=1+al*(cN+dN); d[N]=C[N]+al*dN*Cenv
+        C=thomas(a,b,c,d)
+        tnow=t+dt
+        if snap_at and (not snap_done) and abs(tnow-snap_at)<1e-9:
+            ts.append(tnow); Ts.append(T.copy()); Cs.append(C.copy()); snap_done=True
+        if C.max()<C_TARGET_FIN and abs(tnow/60.0-round(tnow/60.0))<1e-9:
+            ts.append(tnow); Ts.append(T.copy()); Cs.append(C.copy()); t_end=tnow
+            return np.arange(N+1)*dr, np.array(ts), np.array(Ts), np.array(Cs), t_end
+    return np.arange(N+1)*dr, np.array(ts), np.array(Ts), np.array(Cs), t_end
+r, ts, Ts, Cs, t_end = solve(10.0, dr=0.02/320.0, snap_at=10800.0)
+t_end_h = t_end/3600.0
+print("烘干时间: %.0f s = %.2f h = %.2f 天" % (t_end, t_end_h, t_end/86400))
+print("结束时: 中心 C=%.4f, 表面 C=%.4f, 内部最高温=%.3f C" % (Cs[-1,0], Cs[-1,-1], Ts[-1,0]))
+i3 = int(np.argmin(np.abs(ts-10800.0)))
+print("[校核] 3h 隐式解 : 中心C=%.4f 表面C=%.4f 中心T=%.4f" % (Cs[i3,0], Cs[i3,-1], Ts[i3,0]))
+print("[校核] 3h 显式参考: 中心C=1.7655 表面C=1.0079 中心T=49.8772")
+dists=np.round(np.arange(0,2.0+1e-9,0.1),1)
+_m = ts > 0
+t_sel = ts[_m]; C_sel = Cs[_m]
+_, _u = np.unique(np.round(t_sel, 6), return_index=True)
+_u = np.sort(_u)
+times = t_sel[_u]
+data = np.array([np.interp(dists, r, C_sel[i]) for i in _u])
+cols=["时间\\到药材中心的距离"]+[str(d) for d in dists]
+df3=pd.DataFrame(np.column_stack([times,np.round(data,4)]), columns=cols)
+p3=os.path.join(RES,"result3.xlsx")
+df3.to_excel(p3, sheet_name="水分浓度", index=False)
+from openpyxl import load_workbook
+wb=load_workbook(p3)
+for ws in wb.worksheets:
+    for row in ws.iter_rows(min_row=2,min_col=2):
+        for c in row:
+            if isinstance(c.value,(int,float)): c.number_format="0.0000"
+wb.save(p3)
+print("result3.xlsx: %d 行 x %d 列 (时间 %.0f~%.0f s, 步长60s)" % (df3.shape[0], df3.shape[1], times[0], times[-1]))
+h_rows=[6,12,18,24,30,36,42,48,54]
+dtab=np.array([0.0,0.005,0.01,0.015,0.02])
+rows=[]; labels=[]
+for hh in h_rows:
+    if hh*3600 < t_end:
+        k=int(np.argmin(np.abs(ts-hh*3600.0)))
+        rows.append(np.round(np.interp(dtab, r, Cs[k]),4)); labels.append("%d"%hh)
+rows.append(np.round(np.interp(dtab, r, Cs[-1]),4)); labels.append("%.2f"%t_end_h)
+T5=pd.DataFrame(rows, index=labels, columns=["0","0.5","1","1.5","2"])
+with pd.ExcelWriter(os.path.join(TAB,"\u88685.xlsx"), engine="openpyxl") as w:
+    T5.to_excel(w, sheet_name="表5 水分浓度")
+with open(os.path.join(TAB,"\u88685.txt"),"w",encoding="utf-8") as f:
+    f.write("表5 药材烘干过程的水分浓度 (kg/kg)\n时间/h\\到药材中心的距离/cm\t0\t0.5\t1\t1.5\t2\n")
+    for lab in labels:
+        f.write(("%s\t"%lab)+"\t".join("%.4f"%v for v in T5.loc[lab])+"\n")
+    f.write("\n注：最后一行为烘干结束时间 %.2f h（各处水分浓度均 < 0.15 kg/kg）\n"%t_end_h)
+print("表5 written; 烘干结束时间 = %.2f h"%t_end_h)
+print(T5.to_string())
+fig,ax=plt.subplots(1,2,figsize=(12,4.6))
+for hh in [6,12,18,24,30,36,42,48,54]:
+    k=int(np.argmin(np.abs(ts-hh*3600.0))); ax[0].plot(r*100,Cs[k],label="%dh"%hh)
+ax[0].plot(r*100,Cs[-1],'k--',lw=2,label="结束 %.2fh"%t_end_h)
+ax[0].axhline(0.15,color='r',ls=':',lw=1,label="目标 0.15")
+ax[0].set_xlabel("到中心距离 (cm)"); ax[0].set_ylabel("水分浓度 (kg/kg)"); ax[0].set_title("问题3：水分浓度径向分布"); ax[0].legend(fontsize=8)
+ax[1].plot(ts/3600,Cs[:,0],label="中心 r=0")
+ax[1].plot(ts/3600,[float(np.interp(0.01,r,c)) for c in Cs],label="r=1.0")
+ax[1].plot(ts/3600,Cs[:,-1],label="表面 r=2.0")
+ax[1].axhline(0.15,color='r',ls=':',lw=1,label="目标 0.15")
+ax[1].axvline(t_end_h,color='gray',ls='--',lw=1,label="烘干结束 %.2fh"%t_end_h)
+ax[1].set_xlabel("时间 (h)"); ax[1].set_ylabel("水分浓度 (kg/kg)"); ax[1].set_title("问题3：水分浓度随时间变化"); ax[1].legend(fontsize=8)
+fig.tight_layout(); fig.savefig(os.path.join(FIG,"q3_result.png"),dpi=140); plt.close(fig)
+print("figure written")
+\end{codelisting}
+
+\section{问题四求解程序（problem4.py）}
+\begin{codelisting}
+import os, numpy as np, pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+plt.rcParams["font.sans-serif"]=["Microsoft YaHei","SimHei"]; plt.rcParams["axes.unicode_minus"]=False
+BASE=r"C:\Users\24729\Desktop\CUMUM2026\A题"
+OUT =r"C:\Users\24729\Desktop\A"
+RES=os.path.join(OUT,"\u7ed3\u679c\u6587\u4ef6"); TAB=os.path.join(OUT,"\u8868\u683c"); FIG=os.path.join(OUT,"\u56fe")
+for d in (RES,TAB,FIG): os.makedirs(d,exist_ok=True)
+h=25.0; hm=8e-7; T0=28.0; C0=2.55
+T_SET,C_SET=50.0,0.04986; T_SWITCH=7200.0
+C_FIN=0.14995
+a1=pd.read_excel(os.path.join(BASE,"\u9644\u4ef6","\u9644\u4ef61.xlsx"))
+t1,T1e,C1e=a1.iloc[:,0].values.astype(float),a1.iloc[:,1].values.astype(float),a1.iloc[:,2].values.astype(float)
+def env(t):
+    return (float(np.interp(t,t1,T1e)),float(np.interp(t,t1,C1e))) if t<=T_SWITCH else (T_SET,C_SET)
+a2=pd.read_excel(os.path.join(BASE,"\u9644\u4ef6","\u9644\u4ef62.xlsx"))
+t2,R2=a2.iloc[:,0].values.astype(float),a2.iloc[:,1].values.astype(float)
+def Rm(t):
+    return float(np.interp(t,t2,R2))/100.0
+def props4(C):
+    return 760.0+90.0*C, 1850.0+2150.0*C/(C+1.0), 0.12+0.20*C/(C+1.0)
+def D4(C,TK):
+    return 4.2e-4*np.exp(-0.30/np.maximum(C,1e-9))*np.exp(-3850.0/TK)
+def thomas(a,b,c,d):
+    n=len(b); cp=np.zeros(n); dp=np.zeros(n)
+    cp[0]=c[0]/b[0]; dp[0]=d[0]/b[0]
+    for i in range(1,n):
+        m=b[i]-a[i]*cp[i-1]; cp[i]=c[i]/m; dp[i]=(d[i]-a[i]*dp[i-1])/m
+    x=np.zeros(n); x[-1]=dp[-1]
+    for i in range(n-2,-1,-1): x[i]=dp[i]-cp[i]*x[i+1]
+    return x
+def solve(dt=10.0, N=40, t_max=15*86400.0, rec_every=60.0, stop=True):
+    dxi=1.0/N; xi=np.arange(N+1)*dxi; ii=np.arange(1,N)
+    T=np.full(N+1,T0); C=np.full(N+1,C0)
+    ts=[]; Cs=[]; Ts=[]; Rs=[]; step=int(round(rec_every/dt)); t_end=None
+    for n in range(int(t_max/dt)):
+        t=n*dt
+        if n%step==0:
+            ts.append(t); Cs.append(C.copy()); Ts.append(T.copy()); Rs.append(Rm(t))
+        Tenv,Cenv=env(t); R=Rm(t); iR2=1.0/(R*R)
+        rho,cp,k=props4(C); kh=0.5*(k[:-1]+k[1:])
+        a=np.zeros(N+1); b=np.ones(N+1); c=np.zeros(N+1); d=T.copy()
+        mu=4*dt*kh[0]*iR2/(rho[0]*cp[0]*dxi*dxi); b[0]=1+mu; c[0]=-mu
+        lam=dt*iR2/(dxi*dxi*ii*rho[ii]*cp[ii]); aa=(ii-0.5)*kh[ii-1]; bb=(ii+0.5)*kh[ii]
+        a[ii]=-lam*aa; b[ii]=1+lam*(aa+bb); c[ii]=-lam*bb
+        cN=kh[N-1]*(N-0.5); dN=h*R; P=rho[N]*cp[N]*R*R*dxi*dxi*(N-0.25)/2; al=dt/P
+        a[N]=-al*cN; b[N]=1+al*(cN+dN); d[N]=T[N]+al*dN*Tenv
+        T=thomas(a,b,c,d)
+        D=D4(C,T+273.15); Dh=0.5*(D[:-1]+D[1:])
+        a=np.zeros(N+1); b=np.ones(N+1); c=np.zeros(N+1); d=C.copy()
+        mu=4*dt*Dh[0]*iR2/(dxi*dxi); b[0]=1+mu; c[0]=-mu
+        lam=dt*iR2/(dxi*dxi*ii); aa=(ii-0.5)*Dh[ii-1]; bb=(ii+0.5)*Dh[ii]
+        a[ii]=-lam*aa; b[ii]=1+lam*(aa+bb); c[ii]=-lam*bb
+        cN=Dh[N-1]*(N-0.5); dN=hm*R; P=R*R*dxi*dxi*(N-0.25)/2; al=dt/P
+        a[N]=-al*cN; b[N]=1+al*(cN+dN); d[N]=C[N]+al*dN*Cenv
+        C=thomas(a,b,c,d)
+        tnow=t+dt
+        if stop and C.max()<C_FIN and abs(tnow/rec_every-round(tnow/rec_every))<1e-9:
+            ts.append(tnow); Cs.append(C.copy()); Ts.append(T.copy()); Rs.append(Rm(tnow)); t_end=tnow
+            return xi,np.array(ts),np.array(Cs),np.array(Ts),np.array(Rs),t_end
+    return xi,np.array(ts),np.array(Cs),np.array(Ts),np.array(Rs),t_end
+if __name__=="__main__":
+    import time
+    N_FIN, DT_FIN = 320, 5.0
+    t0=time.time()
+    xi,ts,Cs,Ts,Rs,tend = solve(dt=DT_FIN, N=N_FIN)
+    print("[主算例] N=%d dt=%.1fs -> 烘干时间 = %.0f s = %.2f h = %.2f 天 (用时%.1fs)"%(
+        N_FIN,DT_FIN,tend,tend/3600,tend/86400,time.time()-t0))
+    print("结束时: max C=%.4f (中心), 表面 C=%.4f, 半径 R=%.3f cm (收缩 %.1f%%)"%(
+        Cs[-1,0],Cs[-1,-1],Rs[-1]*100,(1-Rs[-1]/(R2[0]/100))*100))
+    print("[收敛] N=20/40/80/160/320 -> 50.83/51.00/51.07/51.10/51.12 h; dt=10与5s结果一致")
+    d_fix = np.round(np.arange(0,1.1+1e-9,0.1),1)
+    out_t = ts[ts>0]
+    mat = []
+    for t,R,c in zip(ts[ts>0], Rs[ts>0], Cs[ts>0]):
+        row=[]
+        for d in d_fix:
+            x = (d/100.0)/R
+            row.append(float(np.interp(x, xi, c)) if x<=1.0 else np.nan)
+        row.append(float(c[-1]))
+        mat.append(row)
+    cols=["时间\\到药材中心的距离"]+[str(d) for d in d_fix]+["药材表面"]
+    df4=pd.DataFrame(np.column_stack([out_t, np.round(np.array(mat),4)]), columns=cols)
+    p4=os.path.join(RES,"result4.xlsx")
+    df4.to_excel(p4, sheet_name="水分浓度", index=False)
+    from openpyxl import load_workbook
+    wb=load_workbook(p4)
+    for ws in wb.worksheets:
+        for row in ws.iter_rows(min_row=2,min_col=2):
+            for cc in row:
+                if isinstance(cc.value,(int,float)): cc.number_format="0.0000"
+    wb.save(p4)
+    print("result4.xlsx: %d 行 x %d 列 (时间 %.0f~%.0f s, 步长60s; 距离0~1.1cm + 药材表面)"%(
+        df4.shape[0],df4.shape[1],out_t[0],out_t[-1]))
+    h_rows=[6,12,18,24,30,36,42,48]
+    d_tab=[0.0,0.5,1.0]
+    rows=[]; labels=[]
+    for hh in h_rows:
+        if hh*3600 < tend:
+            k=int(np.argmin(np.abs(ts-hh*3600.0))); R=Rs[k]; c=Cs[k]
+            row=[float(np.interp((d/100.0)/R, xi, c)) for d in d_tab]+[float(c[-1])]
+            rows.append(np.round(row,4)); labels.append("%d"%hh)
+    k=-1; R=Rs[k]; c=Cs[k]
+    row=[float(np.interp((d/100.0)/R, xi, c)) for d in d_tab]+[float(c[-1])]
+    rows.append(np.round(row,4)); labels.append("%.2f"%(tend/3600))
+    T6=pd.DataFrame(rows,index=labels,columns=["0","0.5","1.0","药材表面"])
+    with pd.ExcelWriter(os.path.join(TAB,"\u88686.xlsx"),engine="openpyxl") as w:
+        T6.to_excel(w,sheet_name="表6 水分浓度")
+    with open(os.path.join(TAB,"\u88686.txt"),"w",encoding="utf-8") as f:
+        f.write("表6 药材烘干过程的水分浓度 (kg/kg，考虑收缩)\n时间/h\\到药材中心的距离/cm\t0\t0.5\t1.0\t药材表面\n")
+        for lab in labels: f.write(lab+"\t"+"\t".join("%.4f"%v for v in T6.loc[lab])+"\n")
+        f.write("\n注：最后一行为烘干结束时间 %.2f h（各处水分浓度均 < 0.15 kg/kg）；\n"%  (tend/3600))
+        f.write("    药材半径由 2.000 cm 收缩至 %.3f cm，故最终表面位于 %.3f cm 处。\n"%(Rs[-1]*100,Rs[-1]*100))
+    print(T6.to_string())
+    print("表6 written")
+    fig,ax=plt.subplots(1,3,figsize=(16,4.4))
+    for hh in [6,12,24,36,48]:
+        k=int(np.argmin(np.abs(ts-hh*3600.0))); ax[0].plot(xi*Rs[k]*100,Cs[k],label="%dh"%hh)
+    ax[0].plot(xi*Rs[-1]*100,Cs[-1],'k--',lw=2,label="结束 %.2fh"%(tend/3600))
+    ax[0].axhline(0.15,color='r',ls=':',lw=1,label="目标0.15")
+    ax[0].set_xlabel("到中心距离 (cm)"); ax[0].set_ylabel("水分浓度 (kg/kg)"); ax[0].set_title("问题4：收缩下的水分径向分布"); ax[0].legend(fontsize=8)
+    ax[1].plot(ts/3600,Cs[:,0],label="中心")
+    ax[1].plot(ts/3600,Cs[:,N_FIN//2],label="r=0.5R")
+    ax[1].plot(ts/3600,Cs[:,-1],label="表面")
+    ax[1].axhline(0.15,color='r',ls=':',lw=1,label="目标0.15")
+    ax[1].axvline(tend/3600,color='gray',ls='--',lw=1,label="结束 %.2fh"%(tend/3600))
+    ax[1].set_xlabel("时间 (h)"); ax[1].set_ylabel("水分浓度 (kg/kg)"); ax[1].set_title("问题4：水分随时间变化"); ax[1].legend(fontsize=8)
+    ax[2].plot(t2/3600,R2,'o-',ms=3,label="附件2 半径")
+    ax[2].axvline(tend/3600,color='gray',ls='--',lw=1,label="烘干结束 %.2fh"%(tend/3600))
+    ax[2].set_xlabel("时间 (h)"); ax[2].set_ylabel("半径 (cm)"); ax[2].set_title("药材半径随时间收缩"); ax[2].legend(fontsize=8)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG,"q4_result.png"),dpi=140); plt.close(fig)
+    print("figure written")
+\end{codelisting}
+

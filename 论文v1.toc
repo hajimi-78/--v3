@@ -1,0 +1,40 @@
+\contentsline {section}{\numberline {一、}问题重述}{4}{section.1}%
+\contentsline {subsection}{\numberline {1\,.\,1}问题背景}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1\,.\,2}问题的提出}{4}{subsection.1.2}%
+\contentsline {section}{\numberline {二、}模型假设与符号说明}{4}{section.2}%
+\contentsline {subsection}{\numberline {2\,.\,1}模型假设}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2\,.\,2}符号说明}{6}{subsection.2.2}%
+\contentsline {section}{\numberline {三、}问题分析}{7}{section.3}%
+\contentsline {section}{\numberline {四、}问题一的模型建立与求解}{8}{section.4}%
+\contentsline {subsection}{\numberline {4\,.\,1}控制方程与定解条件}{8}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4\,.\,2}显式有限差分离散}{8}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4\,.\,3}求解结果与分析}{9}{subsection.4.3}%
+\contentsline {section}{\numberline {五、}问题二的模型建立与求解}{10}{section.5}%
+\contentsline {subsection}{\numberline {5\,.\,1}变物性模型与两阶段烘房条件}{10}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5\,.\,2}守恒型有限体积显式格式}{11}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5\,.\,3}求解结果与分析}{12}{subsection.5.3}%
+\contentsline {section}{\numberline {六、}问题三的模型建立与求解}{13}{section.6}%
+\contentsline {subsection}{\numberline {6\,.\,1}隐式有限体积格式与 Thomas 追赶法}{13}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6\,.\,2}收敛性与精度校核}{14}{subsection.6.2}%
+\contentsline {subsection}{\numberline {6\,.\,3}求解结果与分析}{14}{subsection.6.3}%
+\contentsline {section}{\numberline {七、}问题四的模型建立与求解}{15}{section.7}%
+\contentsline {subsection}{\numberline {7\,.\,1}材料坐标下的收缩模型}{15}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7\,.\,2}数值求解与结果}{16}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7\,.\,3}与问题三结果的对比分析}{16}{subsection.7.3}%
+\contentsline {section}{\numberline {八、}数值算法比较与选择}{17}{section.8}%
+\contentsline {subsection}{\numberline {8\,.\,1}显式与隐式格式的稳定性分析}{18}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8\,.\,2}线性方程组求解器的比较}{18}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8\,.\,3}算法选择结论}{19}{subsection.8.3}%
+\contentsline {section}{\numberline {九、}模型灵敏度分析}{20}{section.9}%
+\contentsline {subsection}{\numberline {9\,.\,1}灵敏度结论与工艺启示}{20}{subsection.9.1}%
+\contentsline {section}{\numberline {十、}模型评价与推广}{23}{section.10}%
+\contentsline {subsection}{\numberline {10\,.\,1}模型优点}{23}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10\,.\,2}模型缺点与改进方向}{23}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10\,.\,3}模型推广}{23}{subsection.10.3}%
+\contentsline {section}{参考文献}{23}{section*.22}%
+\contentsline {section}{附录 \numberline {A}主要程序求解流程}{24}{section.1.A}%
+\contentsline {section}{附录 \numberline {B}问题一求解程序（problem1.py）}{24}{section.1.B}%
+\contentsline {section}{附录 \numberline {C}问题二求解程序（problem2.py）}{26}{section.1.C}%
+\contentsline {section}{附录 \numberline {D}问题三求解程序（problem3.py）}{29}{section.1.D}%
+\contentsline {section}{附录 \numberline {E}问题四求解程序（problem4.py）}{31}{section.1.E}%
+\contentsfinish 
